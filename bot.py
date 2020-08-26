@@ -24,5 +24,15 @@ async def on_message(message):
     if message.author == client.user:
         return
 
+    space_idx = message.content.find(" ")
+
+    if space_idx != -1:
+        initial_text = message.content[space_idx + 1 :]
+        new_title = generate(title_model, initial_text)
+    else:
+        new_title = generate(title_model)
+
+    await message.channel.send(f"Looking for an article idea? How about:\n{new_title}")
+
 
 client.run(os.environ.get("DISCORD_TOKEN"))

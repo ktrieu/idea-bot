@@ -99,7 +99,7 @@ def load_model():
 def generate(model, start=""):
     text = [START_MARKER] * MARKOV_ORDER
     for c in start:
-        start_list.append(c)
+        text.append(c)
 
     last = text[-MARKOV_ORDER:]
 

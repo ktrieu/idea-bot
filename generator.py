@@ -104,7 +104,11 @@ def generate(model, start=""):
     last = text[-MARKOV_ORDER:]
 
     while text[-1] != END_MARKER:
-        chars, weights = model[tuple(last)]
+        try:
+            chars, weights = model[tuple(last)]
+        except KeyError:
+            # we don't have this particular combination in our corpus
+            return None
         text.append(random.choices(chars, cum_weights=weights)[0])
         last = text[-MARKOV_ORDER:]
 

@@ -35,7 +35,15 @@ async def on_message(message):
     else:
         new_title = generate(title_model)
 
-    await message.channel.send(f"Looking for an article idea? How about:\n{new_title}")
+    if new_title:
+        await message.channel.send(
+            f"Looking for an article idea? How about:\n{new_title}"
+        )
+    else:
+        # oops, the seed text wasn't in our corpus
+        await message.channel.send(
+            f"Sorry, we haven't seen anything like that. Try again."
+        )
 
 
 client.run(os.environ.get("DISCORD_TOKEN"))

@@ -24,6 +24,9 @@ async def on_message(message):
     if message.author == client.user:
         return
 
+    if not should_respond(message):
+        return
+
     space_idx = message.content.find(" ")
 
     if space_idx != -1:

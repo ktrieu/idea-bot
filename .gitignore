@@ -7,6 +7,9 @@ env/
 wordpress_dump.xml
 title_model.pickle
 
+# start script for EC2
+start.sh
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

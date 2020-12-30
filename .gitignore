@@ -4,8 +4,8 @@
 # virtualenv
 env/
 
-wordpress_dump.xml
-title_model.pickle
+# trained model data
+checkpoint/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

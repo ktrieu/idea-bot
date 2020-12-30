@@ -58,7 +58,7 @@ class IdeaBotClient(discord.Client):
             initial_text = message.content[space_idx + 1 :]
 
         await message.channel.send(
-            f"Looking for an idea: How about:\n{self.generate_message(initial_text)}"
+            f"Looking for an idea? How about:\n{self.generate_message(initial_text)}"
         )
 
 

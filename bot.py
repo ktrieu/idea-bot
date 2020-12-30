@@ -2,6 +2,9 @@ from dotenv import load_dotenv
 import gpt_2_simple as gpt2
 import os
 import discord
+from concurrent.futures import ThreadPoolExecutor
+from threading import Lock
+import tensorflow as tf
 
 load_dotenv()
 
@@ -16,6 +19,9 @@ class IdeaBotClient(discord.Client):
     def __init__(self, sess):
         super().__init__()
         self.sess = sess
+        self.graph = tf.get_default_graph()
+        self.lock = Lock()
+        self.executor = ThreadPoolExecutor()
 
     def should_respond(self, message):
         return message.channel.name in ALLOWED_CHANNELS and message.content.startswith(
@@ -23,25 +29,27 @@ class IdeaBotClient(discord.Client):
         )
 
     def generate_message(self, initial_text):
-        # adding a prefix seems to constrain the model,
-        # so crank up the temperature if one is provided
-        texts = gpt2.generate(
-            self.sess,
-            length=32,
-            temperature=TEMPERATURE,
-            truncate="\n\n",
-            prefix=initial_text,
-            return_as_list=True,
-            nsamples=NUM_SAMPLES,
-            batch_size=NUM_SAMPLES,
-        )
-        # attempt to filter out failed generated text that doesn't expand on the prefix
-        if initial_text is not None:
-            texts_filtered = list(filter(lambda t: t != initial_text, texts))
-            if len(texts_filtered) != 0:
-                return texts_filtered[0]
+        with self.lock:
+            with self.graph.as_default():
+                # adding a prefix seems to constrain the model,
+                # so crank up the temperature if one is provided
+                texts = gpt2.generate(
+                    self.sess,
+                    length=32,
+                    temperature=TEMPERATURE,
+                    truncate="\n\n",
+                    prefix=initial_text,
+                    return_as_list=True,
+                    nsamples=NUM_SAMPLES,
+                    batch_size=NUM_SAMPLES,
+                )
+                # attempt to filter out failed generated text that doesn't expand on the prefix
+                if initial_text is not None:
+                    texts_filtered = list(filter(lambda t: t != initial_text, texts))
+                    if len(texts_filtered) != 0:
+                        return texts_filtered[0]
 
-        return texts[0]
+                return texts[0]
 
     async def on_message(self, message):
         if message.author == self.user:
@@ -59,7 +67,9 @@ class IdeaBotClient(discord.Client):
 
         sent_message = await message.channel.send("Let me think...")
 
-        generated = self.generate_message(initial_text)
+        generated = await self.loop.run_in_executor(
+            self.executor, lambda: self.generate_message(initial_text)
+        )
 
         await sent_message.edit(content=f"How about:\n{generated}")
 

@@ -57,9 +57,11 @@ class IdeaBotClient(discord.Client):
         if space_idx != -1:
             initial_text = message.content[space_idx + 1 :]
 
-        await message.channel.send(
-            f"Looking for an idea? How about:\n{self.generate_message(initial_text)}"
-        )
+        sent_message = await message.channel.send("Let me think...")
+
+        generated = self.generate_message(initial_text)
+
+        await sent_message.edit(content=f"How about:\n{generated}")
 
 
 if __name__ == "__main__":

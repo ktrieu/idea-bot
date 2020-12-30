@@ -8,8 +8,8 @@ load_dotenv()
 ALLOWED_CHANNELS = {"ideas", "random"}
 
 COMMAND = "!idea"
-TEMP_NO_PREFIX = 0.9
-TEMP_PREFIX = 1.2
+TEMPERATURE = 0.9
+NUM_SAMPLES = 5
 
 
 class IdeaBotClient(discord.Client):
@@ -25,16 +25,15 @@ class IdeaBotClient(discord.Client):
     def generate_message(self, initial_text):
         # adding a prefix seems to constrain the model,
         # so crank up the temperature if one is provided
-        temperature = TEMP_NO_PREFIX if initial_text is None else TEMP_PREFIX
         texts = gpt2.generate(
             self.sess,
             length=32,
-            temperature=temperature,
+            temperature=TEMPERATURE,
             truncate="\n\n",
             prefix=initial_text,
             return_as_list=True,
-            nsamples=5,
-            batch_size=5,
+            nsamples=NUM_SAMPLES,
+            batch_size=NUM_SAMPLES,
         )
         # attempt to filter out failed generated text that doesn't expand on the prefix
         if initial_text is not None:

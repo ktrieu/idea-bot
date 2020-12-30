@@ -12,8 +12,8 @@ ALLOWED_CHANNELS = {"ideas", "random"}
 
 COMMAND = "!idea"
 TEMPERATURE = 0.9
-NUM_SAMPLES = 5
-GENERATE_N_WORDS = 15
+NUM_SAMPLES = 1
+GENERATE_N_WORDS = 20
 
 class IdeaBotClient(discord.Client):
     def __init__(self, sess):

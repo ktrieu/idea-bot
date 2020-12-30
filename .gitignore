@@ -7,6 +7,9 @@ env/
 # trained model data
 checkpoint/
 
+# start script for EC2
+start.sh
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

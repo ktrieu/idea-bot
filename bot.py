@@ -12,8 +12,9 @@ ALLOWED_CHANNELS = {"ideas", "random"}
 
 COMMAND = "!idea"
 TEMPERATURE = 0.9
-NUM_SAMPLES = 1
 GENERATE_N_WORDS = 20
+N_ATTEMPTS = 5
+
 
 class IdeaBotClient(discord.Client):
     def __init__(self, sess):
@@ -29,27 +30,35 @@ class IdeaBotClient(discord.Client):
         )
 
     def generate_message(self, initial_text):
+        if initial_text is None:
+            return self.generate_potential_message(None)
+
+        attempts = N_ATTEMPTS
+
+        # Try N_ATTEMPTS times to generate a message that isn't just the initial text
+        while attempts > 0:
+            potential_message = self.generate_potential_message(initial_text)
+            if potential_message != initial_text:
+                return potential_message
+
+            attempts -= 1
+
+        # well, we tried
+        return potential_message
+
+    def generate_potential_message(self, initial_text):
         with self.lock:
             with self.graph.as_default():
                 # adding a prefix seems to constrain the model,
                 # so crank up the temperature if one is provided
-                texts = gpt2.generate(
+                return gpt2.generate(
                     self.sess,
                     length=GENERATE_N_WORDS,
                     temperature=TEMPERATURE,
                     truncate="\n\n",
                     prefix=initial_text,
                     return_as_list=True,
-                    nsamples=NUM_SAMPLES,
-                    batch_size=NUM_SAMPLES,
-                )
-                # attempt to filter out failed generated text that doesn't expand on the prefix
-                if initial_text is not None:
-                    texts_filtered = list(filter(lambda t: t != initial_text, texts))
-                    if len(texts_filtered) != 0:
-                        return texts_filtered[0]
-
-                return texts[0]
+                )[0]
 
     async def on_message(self, message):
         if message.author == self.user:

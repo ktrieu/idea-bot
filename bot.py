@@ -8,7 +8,7 @@ title_model = load_model()
 
 client = discord.Client()
 
-ALLOWED_CHANNELS = {"random"}
+ALLOWED_CHANNELS = {"ideas", "random"}
 
 COMMAND = "!idea"
 

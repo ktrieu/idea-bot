@@ -13,7 +13,7 @@ ALLOWED_CHANNELS = {"ideas", "random"}
 COMMAND = "!idea"
 TEMPERATURE = 0.9
 NUM_SAMPLES = 5
-
+GENERATE_N_WORDS = 15
 
 class IdeaBotClient(discord.Client):
     def __init__(self, sess):
@@ -35,7 +35,7 @@ class IdeaBotClient(discord.Client):
                 # so crank up the temperature if one is provided
                 texts = gpt2.generate(
                     self.sess,
-                    length=32,
+                    length=GENERATE_N_WORDS,
                     temperature=TEMPERATURE,
                     truncate="\n\n",
                     prefix=initial_text,

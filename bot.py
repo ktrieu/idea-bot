@@ -37,7 +37,10 @@ class IdeaBotClient(discord.Client):
         )
         # attempt to filter out failed generated text that doesn't expand on the prefix
         if initial_text is not None:
-            texts = list(filter(lambda t: t != initial_text, texts))
+            texts_filtered = list(filter(lambda t: t != initial_text, texts))
+            if len(texts_filtered) != 0:
+                return texts_filtered[0]
+
         return texts[0]
 
     async def on_message(self, message):
@@ -54,7 +57,9 @@ class IdeaBotClient(discord.Client):
         if space_idx != -1:
             initial_text = message.content[space_idx + 1 :]
 
-        await message.channel.send(self.generate_message(initial_text))
+        await message.channel.send(
+            f"Looking for an idea: How about:\n{self.generate_message(initial_text)}"
+        )
 
 
 if __name__ == "__main__":

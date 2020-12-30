@@ -1,10 +1,8 @@
 from dotenv import load_dotenv
-from generator import load_model, generate
 import os
 import discord
 
 load_dotenv()
-title_model = load_model()
 
 client = discord.Client()
 
@@ -31,19 +29,12 @@ async def on_message(message):
 
     if space_idx != -1:
         initial_text = message.content[space_idx + 1 :]
-        new_title = generate(title_model, initial_text)
     else:
-        new_title = generate(title_model)
+        pass
 
-    if new_title:
-        await message.channel.send(
-            f"Looking for an article idea? How about:\n{new_title}"
-        )
-    else:
-        # oops, the seed text wasn't in our corpus
-        await message.channel.send(
-            f"Sorry, we haven't seen anything like that. Try again."
-        )
+    await message.channel.send("TEST MASSAGE")
 
 
-client.run(os.environ.get("DISCORD_TOKEN"))
+if __name__ == "__main__":
+    print("Starting bot...")
+    client.run(os.environ.get("DISCORD_TOKEN"))

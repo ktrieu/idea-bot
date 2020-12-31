@@ -15,15 +15,15 @@ COMMAND = "!idea"
 TEMPERATURE = 0.9
 GENERATE_N_WORDS = 32
 N_ATTEMPTS = 5
-MAX_MESSAGES_BEFORE_RESET = 5
+MAX_MESSAGES_BEFORE_RESET = 2
 
 
 class IdeaBotClient(discord.Client):
-    def __init__(self, sess):
+    def __init__(self):
         super().__init__()
-        self.sess = sess
-        self.graph = tf.get_default_graph()
-        self.lock = Lock()
+        self.sess = None
+        self.sess_lock = Lock()
+        self.reset_tf_session()
         self.executor = ThreadPoolExecutor()
         self.messages_generated = 0
         logging.basicConfig(
@@ -60,7 +60,7 @@ class IdeaBotClient(discord.Client):
         return potential_message
 
     def generate_potential_message(self, initial_text):
-        with self.lock:
+        with self.sess_lock:
             with self.graph.as_default():
                 # adding a prefix seems to constrain the model,
                 # so crank up the temperature if one is provided
@@ -76,12 +76,14 @@ class IdeaBotClient(discord.Client):
                 return generated
 
     def reset_tf_session(self):
-        if self.messages_generated > MAX_MESSAGES_BEFORE_RESET:
-            with self.lock:
+        with self.sess_lock:
+            if self.sess is None:
+                self.sess = gpt2.start_tf_sess()
+            else:
                 self.sess = gpt2.reset_session(self.sess)
-                gpt2.load_gpt2(self.sess)
-                self.graph = tf.get_default_graph()
-                self.messages_generated = 0
+            gpt2.load_gpt2(self.sess)
+            self.graph = tf.get_default_graph()
+            self.messages_generated = 0
 
     async def on_message(self, message):
         if message.author == self.user:
@@ -122,10 +124,7 @@ class IdeaBotClient(discord.Client):
 
 
 if __name__ == "__main__":
-    print("Loading text model...")
-    sess = gpt2.start_tf_sess()
-    gpt2.load_gpt2(sess)
     print("Creating client...")
-    client = IdeaBotClient(sess)
+    client = IdeaBotClient()
     print("Bot started...")
     client.run(os.environ.get("DISCORD_TOKEN"))

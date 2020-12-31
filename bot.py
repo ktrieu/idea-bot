@@ -15,6 +15,7 @@ COMMAND = "!idea"
 TEMPERATURE = 0.9
 GENERATE_N_WORDS = 32
 N_ATTEMPTS = 5
+MAX_MESSAGES_BEFORE_RESET = 5
 
 
 class IdeaBotClient(discord.Client):
@@ -24,6 +25,7 @@ class IdeaBotClient(discord.Client):
         self.graph = tf.get_default_graph()
         self.lock = Lock()
         self.executor = ThreadPoolExecutor()
+        self.messages_generated = 0
         logging.basicConfig(
             filename="idea-bot.log",
             level=logging.INFO,
@@ -62,7 +64,7 @@ class IdeaBotClient(discord.Client):
             with self.graph.as_default():
                 # adding a prefix seems to constrain the model,
                 # so crank up the temperature if one is provided
-                return gpt2.generate(
+                generated = gpt2.generate(
                     self.sess,
                     length=GENERATE_N_WORDS,
                     temperature=TEMPERATURE,
@@ -70,12 +72,16 @@ class IdeaBotClient(discord.Client):
                     prefix=initial_text,
                     return_as_list=True,
                 )[0]
+                self.messages_generated += 1
+                return generated
 
     def reset_tf_session(self):
-        with self.lock:
-            self.sess = gpt2.reset_session(self.sess)
-            gpt2.load_gpt2(self.sess)
-            self.graph = tf.get_default_graph()
+        if self.messages_generated > MAX_MESSAGES_BEFORE_RESET:
+            with self.lock:
+                self.sess = gpt2.reset_session(self.sess)
+                gpt2.load_gpt2(self.sess)
+                self.graph = tf.get_default_graph()
+                self.messages_generated = 0
 
     async def on_message(self, message):
         if message.author == self.user:
@@ -103,7 +109,9 @@ class IdeaBotClient(discord.Client):
             self.executor, lambda: self.generate_message(initial_text, message.id)
         )
 
-        logging.info(f"Generation complete for {message.id}")
+        logging.info(
+            f"Generation complete for {message.id}, {self.messages_generated} messages generated"
+        )
 
         await sent_message.edit(content=f"How about:\n{generated}")
 

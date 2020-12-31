@@ -5,6 +5,7 @@ import discord
 from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
 import tensorflow as tf
+import logging
 
 load_dotenv()
 
@@ -23,27 +24,37 @@ class IdeaBotClient(discord.Client):
         self.graph = tf.get_default_graph()
         self.lock = Lock()
         self.executor = ThreadPoolExecutor()
+        logging.basicConfig(
+            filename="idea-bot.log",
+            level=logging.INFO,
+        )
 
     def should_respond(self, message):
         return message.channel.name in ALLOWED_CHANNELS and message.content.startswith(
             COMMAND
         )
 
-    def generate_message(self, initial_text):
+    def generate_message(self, initial_text, message_id):
         if initial_text is None:
+            logging.info(f"Generating prefixless message for {message_id}")
             return self.generate_potential_message(None)
 
         attempts = N_ATTEMPTS
 
         # Try N_ATTEMPTS times to generate a message that isn't just the initial text
         while attempts > 0:
+            logging.info(
+                f"Prefix message generation for {message_id}: attempt {N_ATTEMPTS - attempts + 1} of {N_ATTEMPTS}"
+            )
             potential_message = self.generate_potential_message(initial_text)
             if potential_message != initial_text:
+                logging.info(f"Prefix message generation success for {message_id}")
                 return potential_message
 
             attempts -= 1
 
         # well, we tried
+        logging.info(f"Attempts exhausted for {message_id}")
         return potential_message
 
     def generate_potential_message(self, initial_text):
@@ -74,13 +85,23 @@ class IdeaBotClient(discord.Client):
         if space_idx != -1:
             initial_text = message.content[space_idx + 1 :]
 
-        sent_message = await message.channel.send("Let me think...")
-
-        generated = await self.loop.run_in_executor(
-            self.executor, lambda: self.generate_message(initial_text)
+        logging.info(
+            f"{message.author} ({message.id}) requested message with prefix: {initial_text}"
         )
 
+        sent_message = await message.channel.send("Let me think...")
+
+        logging.info(f"Scheduling generation for {message.id}...")
+
+        generated = await self.loop.run_in_executor(
+            self.executor, lambda: self.generate_message(initial_text, message.id)
+        )
+
+        logging.info(f"Generation complete for {message.id}")
+
         await sent_message.edit(content=f"How about:\n{generated}")
+
+        logging.info(f"Reply sent for {message.id}")
 
 
 if __name__ == "__main__":

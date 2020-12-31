@@ -71,6 +71,12 @@ class IdeaBotClient(discord.Client):
                     return_as_list=True,
                 )[0]
 
+    def reset_tf_session(self):
+        with self.lock:
+            self.sess = gpt2.reset_session(self.sess)
+            gpt2.load_gpt2(self.sess)
+            self.graph = tf.get_default_graph()
+
     async def on_message(self, message):
         if message.author == self.user:
             return
@@ -102,6 +108,9 @@ class IdeaBotClient(discord.Client):
         await sent_message.edit(content=f"How about:\n{generated}")
 
         logging.info(f"Reply sent for {message.id}")
+
+        # FIX: gpt-2-simple slowly leaks memory over time, so reset the session after every message to combat this
+        await self.loop.run_in_executor(self.executor, self.reset_tf_session)
 
 
 if __name__ == "__main__":

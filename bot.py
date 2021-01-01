@@ -3,7 +3,7 @@ import os
 import discord
 import logging
 from generator import GeneratorProcess, GenerateRequest, StopRequest
-from multiprocessing import Queue
+from multiprocessing import Pipe
 
 load_dotenv()
 
@@ -20,9 +20,9 @@ class IdeaBotClient(discord.Client):
             filename="idea-bot.log",
             level=logging.INFO,
         )
-        self.requests = Queue()
-        self.results = Queue()
-        self.generator_process = GeneratorProcess(requests=self.requests, results=self.results)
+        parent_conn, child_conn = Pipe()
+        self.conn = parent_conn
+        self.generator_process = GeneratorProcess(conn=child_conn)
         self.generator_process.start()
 
     def should_respond(self, message):
@@ -31,7 +31,7 @@ class IdeaBotClient(discord.Client):
         )
 
     def terminate_worker_process(self):
-        self.requests.put(StopRequest())
+        self.conn.send(StopRequest())
 
     async def on_message(self, message):
         if message.author == self.user:
@@ -55,7 +55,7 @@ class IdeaBotClient(discord.Client):
 
         logging.info(f"Scheduling generation for {message.id}...")
 
-        self.requests.put(GenerateRequest(initial_text, message.id))
+        self.conn.send(GenerateRequest(initial_text, message.id))
 
 
 if __name__ == "__main__":

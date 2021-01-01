@@ -28,10 +28,9 @@ class StopRequest:
 
 
 class GeneratorProcess(Process):
-    def __init__(self, requests, results):
+    def __init__(self, conn):
         Process.__init__(self)
-        self.requests = requests
-        self.results = results
+        self.conn = conn
         self.sess = None
 
     def start(self):
@@ -87,13 +86,14 @@ class GeneratorProcess(Process):
         logging.info("Starting GeneratorProcess")
 
         while True:
-            msg = self.requests.get()
-            if msg.type == RequestType.GENERATE:
-                logging.info(
-                    f"Generating with initial text: {msg.initial_text} for {msg.message_id}"
-                )
-            elif msg.type == RequestType.STOP:
-                logging.info(f"Stop message received, terminating")
-                return
-            else:
-                logging.error(f"Invalid message type received")
+            if self.conn.poll():
+                msg = self.conn.recv()
+                if msg.type == RequestType.GENERATE:
+                    print(
+                        f"Generating with initial text: {msg.initial_text} for {msg.message_id}"
+                    )
+                elif msg.type == RequestType.STOP:
+                    print(f"Stop message received, terminating")
+                    return
+                else:
+                    logging.error(f"Invalid message type received")

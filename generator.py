@@ -48,6 +48,7 @@ class GeneratorProcess(Process):
         self.conn = conn
         self.sess = None
         self.terminate = False
+        self.messages_generated = 0
 
     def start(self):
         Process.start(self)
@@ -106,7 +107,8 @@ class GeneratorProcess(Process):
             self.conn.send(
                 GenerateResponse(generated, request.channel_id, request.message_id)
             )
-            self.reset_tf_session()
+            if self.messages_generated > MAX_MESSAGES_BEFORE_RESET:
+                self.reset_tf_session()
         elif request.type == RequestType.STOP:
             self.logger.info(f"Stop message received, terminating")
             self.terminate = True

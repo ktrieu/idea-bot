@@ -32,53 +32,56 @@ class GeneratorProcess(Process):
         Process.__init__(self)
         self.requests = requests
         self.results = results
-        # self.sess = None
-        # self.reset_tf_session()
+        self.sess = None
 
-    # def generate_message(self, initial_text, message_id):
-    #     if initial_text is None:
-    #         logging.info(f"Generating prefixless message for {message_id}")
-    #         return self.generate_potential_message(None)
+    def start(self):
+        Process.start(self)
+        self.reset_tf_session()
 
-    #     attempts = N_ATTEMPTS
+    def generate_message(self, initial_text, message_id):
+        if initial_text is None:
+            logging.info(f"Generating prefixless message for {message_id}")
+            return self.generate_potential_message(None)
 
-    #     # Try N_ATTEMPTS times to generate a message that isn't just the initial text
-    #     while attempts > 0:
-    #         logging.info(
-    #             f"Prefix message generation for {message_id}: attempt {N_ATTEMPTS - attempts + 1} of {N_ATTEMPTS}"
-    #         )
-    #         potential_message = self.generate_potential_message(initial_text)
-    #         if potential_message != initial_text:
-    #             logging.info(f"Prefix message generation success for {message_id}")
-    #             return potential_message
+        attempts = N_ATTEMPTS
 
-    #         attempts -= 1
+        # Try N_ATTEMPTS times to generate a message that isn't just the initial text
+        while attempts > 0:
+            logging.info(
+                f"Prefix message generation for {message_id}: attempt {N_ATTEMPTS - attempts + 1} of {N_ATTEMPTS}"
+            )
+            potential_message = self.generate_potential_message(initial_text)
+            if potential_message != initial_text:
+                logging.info(f"Prefix message generation success for {message_id}")
+                return potential_message
 
-    #     # well, we tried
-    #     logging.info(f"Attempts exhausted for {message_id}")
-    #     return potential_message
+            attempts -= 1
 
-    # def generate_potential_message(self, initial_text):
-    #     with self.graph.as_default():
-    #         generated = gpt2.generate(
-    #             self.sess,
-    #             length=GENERATE_N_WORDS,
-    #             temperature=TEMPERATURE,
-    #             truncate="\n\n",
-    #             prefix=initial_text,
-    #             return_as_list=True,
-    #         )[0]
-    #         self.messages_generated += 1
-    #         return generated
+        # well, we tried
+        logging.info(f"Attempts exhausted for {message_id}")
+        return potential_message
 
-    # def reset_tf_session(self):
-    #     if self.sess is None:
-    #         self.sess = gpt2.start_tf_sess()
-    #     else:
-    #         self.sess = gpt2.reset_session(self.sess)
-    #     gpt2.load_gpt2(self.sess)
-    #     self.graph = tf.get_default_graph()
-    #     self.messages_generated = 0
+    def generate_potential_message(self, initial_text):
+        with self.graph.as_default():
+            generated = gpt2.generate(
+                self.sess,
+                length=GENERATE_N_WORDS,
+                temperature=TEMPERATURE,
+                truncate="\n\n",
+                prefix=initial_text,
+                return_as_list=True,
+            )[0]
+            self.messages_generated += 1
+            return generated
+
+    def reset_tf_session(self):
+        if self.sess is None:
+            self.sess = gpt2.start_tf_sess()
+        else:
+            self.sess = gpt2.reset_session(self.sess)
+        gpt2.load_gpt2(self.sess)
+        self.graph = tf.get_default_graph()
+        self.messages_generated = 0
 
     def run(self):
         logging.info("Starting GeneratorProcess")

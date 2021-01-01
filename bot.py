@@ -2,8 +2,11 @@ from dotenv import load_dotenv
 import os
 import discord
 import logging
+import generator
 from generator import GeneratorProcess, GenerateRequest, StopRequest
 from multiprocessing import Pipe
+import sys
+import util
 
 load_dotenv()
 
@@ -16,10 +19,7 @@ class IdeaBotClient(discord.Client):
     def __init__(self):
         super().__init__()
         self.messages_generated = 0
-        logging.basicConfig(
-            filename="idea-bot.log",
-            level=logging.INFO,
-        )
+        self.logger = util.create_logger("idea-bot")
         parent_conn, child_conn = Pipe()
         self.conn = parent_conn
         self.generator_process = GeneratorProcess(conn=child_conn)
@@ -47,13 +47,13 @@ class IdeaBotClient(discord.Client):
         if space_idx != -1:
             initial_text = message.content[space_idx + 1 :]
 
-        logging.info(
+        self.logger.info(
             f"{message.author} ({message.id}) requested message with prefix: {initial_text}"
         )
 
         sent_message = await message.channel.send("Let me think...")
 
-        logging.info(f"Scheduling generation for {message.id}...")
+        self.logger.info(f"Scheduling generation for {message.id}...")
 
         self.conn.send(GenerateRequest(initial_text, message.id))
 
@@ -61,7 +61,7 @@ class IdeaBotClient(discord.Client):
 if __name__ == "__main__":
     print("Creating client...")
     client = IdeaBotClient()
-    print("Logging in...")
+    print("Starting bot...")
     client.run(os.environ.get("DISCORD_TOKEN"))
     print("Terminating worker process...")
     client.terminate_worker_process()

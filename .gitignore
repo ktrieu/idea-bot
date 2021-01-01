@@ -7,8 +7,8 @@ env/
 # trained model data
 checkpoint/
 
-# log file
-idea-bot.log
+# log files
+*.log
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -17,10 +17,15 @@ class RequestType(enum.Enum):
     STOP = "stop"
 
 
+class ResponseType(enum.Enum):
+    GENERATE = "generate"
+
+
 class GenerateRequest:
-    def __init__(self, initial_text, message_id):
+    def __init__(self, initial_text, channel_id, message_id):
         self.type = RequestType.GENERATE
         self.initial_text = initial_text
+        self.channel_id = channel_id
         self.message_id = message_id
 
 
@@ -29,18 +34,27 @@ class StopRequest:
         self.type = RequestType.STOP
 
 
+class GenerateResponse:
+    def __init__(self, generated, channel_id, message_id):
+        self.type = ResponseType.GENERATE
+        self.generated = generated
+        self.channel_id = channel_id
+        self.message_id = message_id
+
+
 class GeneratorProcess(Process):
     def __init__(self, conn):
         Process.__init__(self)
         self.conn = conn
         self.sess = None
+        self.terminate = False
 
     def start(self):
         Process.start(self)
 
-    def generate_message(self, initial_text, message_id):
+    def generate_message(self, initial_text):
         if initial_text is None:
-            self.logger.info(f"Generating prefixless message for {message_id}")
+            self.logger.info(f"Generating prefixless message")
             return self.generate_potential_message(None)
 
         attempts = N_ATTEMPTS
@@ -48,17 +62,17 @@ class GeneratorProcess(Process):
         # Try N_ATTEMPTS times to generate a message that isn't just the initial text
         while attempts > 0:
             self.logger.info(
-                f"Prefix message generation for {message_id}: attempt {N_ATTEMPTS - attempts + 1} of {N_ATTEMPTS}"
+                f"Prefix message generation: attempt {N_ATTEMPTS - attempts + 1} of {N_ATTEMPTS}"
             )
             potential_message = self.generate_potential_message(initial_text)
             if potential_message != initial_text:
-                self.logger.info(f"Prefix message generation success for {message_id}")
+                self.logger.info(f"Prefix message generation success")
                 return potential_message
 
             attempts -= 1
 
         # well, we tried
-        self.logger.info(f"Attempts exhausted for {message_id}")
+        self.logger.info(f"Attempts exhausted")
         return potential_message
 
     def generate_potential_message(self, initial_text):
@@ -83,20 +97,30 @@ class GeneratorProcess(Process):
         self.graph = tf.get_default_graph()
         self.messages_generated = 0
 
+    def handle_request(self, request):
+        if request.type == RequestType.GENERATE:
+            self.logger.info(
+                f"Generating with initial text: {request.initial_text} for {request.message_id}"
+            )
+            generated = self.generate_message(request.initial_text)
+            self.conn.send(
+                GenerateResponse(generated, request.channel_id, request.message_id)
+            )
+            self.reset_tf_session()
+        elif request.type == RequestType.STOP:
+            self.logger.info(f"Stop message received, terminating")
+            self.terminate = True
+        else:
+            self.logger.error(f"Invalid message type received")
+
     def run(self):
         self.logger = util.create_logger(__name__)
         self.reset_tf_session()
         self.logger.info("Starting GeneratorProcess")
 
-        while True:
-            if self.conn.poll():
-                msg = self.conn.recv()
-                if msg.type == RequestType.GENERATE:
-                    self.logger.info(
-                        f"Generating with initial text: {msg.initial_text} for {msg.message_id}"
-                    )
-                elif msg.type == RequestType.STOP:
-                    self.logger.info(f"Stop message received, terminating")
-                    return
-                else:
-                    self.logger.error(f"Invalid message type received")
+        try:
+            while not self.terminate:
+                request = self.conn.recv()
+                self.handle_request(request)
+        except KeyboardInterrupt:
+            return

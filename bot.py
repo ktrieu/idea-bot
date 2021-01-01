@@ -1,12 +1,20 @@
 from dotenv import load_dotenv
 import os
 import discord
+from discord.ext import tasks
 import logging
 import generator
-from generator import GeneratorProcess, GenerateRequest, StopRequest
+from generator import (
+    GeneratorProcess,
+    GenerateRequest,
+    StopRequest,
+    GenerateResponse,
+    ResponseType,
+)
 from multiprocessing import Pipe
 import sys
 import util
+import asyncio
 
 load_dotenv()
 
@@ -14,16 +22,18 @@ ALLOWED_CHANNELS = {"ideas", "random"}
 
 COMMAND = "!idea"
 
+RESP_CHECK_INTERVAL_S = 1
+
 
 class IdeaBotClient(discord.Client):
     def __init__(self):
         super().__init__()
-        self.messages_generated = 0
         self.logger = util.create_logger("idea-bot")
         parent_conn, child_conn = Pipe()
         self.conn = parent_conn
         self.generator_process = GeneratorProcess(conn=child_conn)
         self.generator_process.start()
+        self.loop.create_task(self.check_responses())
 
     def should_respond(self, message):
         return message.channel.name in ALLOWED_CHANNELS and message.content.startswith(
@@ -41,9 +51,7 @@ class IdeaBotClient(discord.Client):
             return
 
         space_idx = message.content.find(" ")
-
         initial_text = None
-
         if space_idx != -1:
             initial_text = message.content[space_idx + 1 :]
 
@@ -55,7 +63,24 @@ class IdeaBotClient(discord.Client):
 
         self.logger.info(f"Scheduling generation for {message.id}...")
 
-        self.conn.send(GenerateRequest(initial_text, message.id))
+        self.conn.send(
+            GenerateRequest(initial_text, sent_message.channel.id, sent_message.id)
+        )
+
+    async def check_responses(self):
+        while True:
+            while self.conn.poll():
+                resp = self.conn.recv()
+                if resp.type == ResponseType.GENERATE:
+                    self.logger.info(
+                        f"Response found, responding in message {resp.message_id}"
+                    )
+                    channel = await self.fetch_channel(resp.channel_id)
+                    message = await channel.fetch_message(resp.message_id)
+                    await message.edit(content=f"How about:\n{resp.generated}")
+                else:
+                    self.logger.error("Invalid message type received")
+            await asyncio.sleep(RESP_CHECK_INTERVAL_S)
 
 
 if __name__ == "__main__":

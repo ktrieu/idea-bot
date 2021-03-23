@@ -18,7 +18,7 @@ import asyncio
 
 load_dotenv()
 
-ALLOWED_CHANNELS = {"ideas", "random"}
+ALLOWED_CHANNELS = {"beyond-ideas"}
 
 COMMAND = "!idea"
 

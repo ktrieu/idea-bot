@@ -16,7 +16,9 @@ if __name__ == "__main__":
         file=open("titles.txt", "r"), purpose="fine-tune"
     )
     file_id = upload_result["id"]
-    fine_tune = openai.FineTune.create(training_file=file_id, model="babbage")
+    fine_tune = openai.FineTune.create(
+        training_file=file_id, model="babbage", n_epochs=2, prompt_loss_weight=1
+    )
     job_id = fine_tune["id"]
 
     fine_tuned_model_id = None

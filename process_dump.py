@@ -1,5 +1,6 @@
 import re
 import html
+import json
 
 TITLE_REGEX = re.compile(r"<title>(.*)<\/title>")
 
@@ -12,4 +13,7 @@ if __name__ == "__main__":
                 if match == "":
                     continue
                 cleaned_match = html.unescape(match.rstrip("\n"))
-                titles_file.write(cleaned_match + "\n")
+                # Output line by line in JSONL format
+                titles_file.write(
+                    json.dumps({"prompt": "", "completion": cleaned_match}) + "\n"
+                )

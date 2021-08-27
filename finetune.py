@@ -24,8 +24,9 @@ if __name__ == "__main__":
         try:
             events = openai.FineTune.stream_events(job_id)
             for event in events:
-                print(datetime.fromtimestamp(event["created_at"]))
-                print(event["message"])
+                print(
+                    f'[{datetime.fromtimestamp(event["created_at"])}] {event["message"]}'
+                )
         except requests.ConnectionError as e:
             # if there's a connection error, it probably just expired, the following code will retry
             # if the job is still running

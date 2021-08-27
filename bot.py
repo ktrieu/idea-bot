@@ -14,6 +14,7 @@ import asyncio
 load_dotenv()
 
 ALLOWED_CHANNELS = {"secret-channel-name"}
+ALLOWED_SERVER_IDS = {748228407472423015}
 
 COMMAND = "!idea"
 
@@ -31,8 +32,10 @@ class IdeaBotClient(discord.Client):
         self.loop.create_task(self.check_responses())
 
     def should_respond(self, message):
-        return message.channel.name in ALLOWED_CHANNELS and message.content.startswith(
-            COMMAND
+        return (
+            message.channel.name in ALLOWED_CHANNELS
+            and message.guild.id in ALLOWED_SERVER_IDS
+            and message.content.startswith(COMMAND)
         )
 
     def terminate_worker_process(self):

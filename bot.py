@@ -1,24 +1,19 @@
 from dotenv import load_dotenv
 import os
 import discord
-from discord.ext import tasks
-import logging
-import generator
 from generator import (
     GeneratorProcess,
     GenerateRequest,
     StopRequest,
-    GenerateResponse,
     ResponseType,
 )
 from multiprocessing import Pipe
-import sys
 import util
 import asyncio
 
 load_dotenv()
 
-ALLOWED_CHANNELS = {"ideas", "random"}
+ALLOWED_CHANNELS = {"secret-channel-name"}
 
 COMMAND = "!idea"
 

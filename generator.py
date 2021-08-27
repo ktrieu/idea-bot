@@ -13,6 +13,13 @@ MAX_TOKENS = 64
 STOP_SEQUENCE = "####"
 N_ATTEMPTS = 5
 
+CONTENT_FILTER_ENGINE = "content-filter-alpha-c4"
+# False positive threshold for content filtering
+TOXIC_THRESHOLD = -0.355
+CONTENT_SAFE = "0"
+CONTENT_SENSITIVE = "1"
+CONTENT_HARMFUL = "2"
+
 PREFIX_TEXT = "Looking for a mathNEWS article idea? How about:"
 MODEL_ID = os.environ.get("OPENAI_FINETUNED_MODEL")
 
@@ -57,11 +64,54 @@ class GeneratorProcess(Process):
     def start(self):
         Process.start(self)
 
+    def is_harmful(self, completion):
+        # https://beta.openai.com/docs/engines/content-filter
+        response = openai.Completion.create(
+            engine=CONTENT_FILTER_ENGINE,
+            prompt="<|endoftext|>" + completion + "\n--\nLabel:",
+            temperature=0,
+            max_tokens=1,
+            top_p=1,
+            frequency_penalty=0,
+            presence_penalty=0,
+            logprobs=10,
+        )
+
+        output_label = response.choices[0].text
+        # If the classifier returns harmful, check probablity first
+        # and reassign to the next most probable label if its below the threshold
+        if output_label == CONTENT_HARMFUL:
+            logprobs = response["choices"][0]["logprobs"]["top_logprobs"][0]
+
+            if logprobs[CONTENT_HARMFUL] < TOXIC_THRESHOLD:
+                prob_safe = logprobs.get(CONTENT_SAFE, None)
+                prob_sensitive = logprobs.get(CONTENT_SENSITIVE, None)
+
+                if prob_safe is not None and prob_sensitive is not None:
+                    if prob_safe >= prob_sensitive:
+                        output_label = CONTENT_SAFE
+                    else:
+                        output_label = CONTENT_SENSITIVE
+
+                elif prob_safe is not None:
+                    output_label = CONTENT_SAFE
+                elif prob_sensitive is not None:
+                    output_label = CONTENT_SENSITIVE
+
+        if output_label not in [CONTENT_SAFE, CONTENT_SENSITIVE, CONTENT_HARMFUL]:
+            output_label = CONTENT_HARMFUL
+
+        return output_label == CONTENT_HARMFUL
+
     def is_valid_completion(self, completion):
         if completion == "":
             return False
-        # content filtering eventually goes here
-        return True
+        harmful = self.is_harmful(completion)
+        if harmful:
+            self.logger.info(
+                f"Content filter found {completion} to be harmful. Rejecting..."
+            )
+        return not harmful
 
     def generate_message(self, initial_text):
         if initial_text is None:

@@ -13,6 +13,8 @@ MAX_TOKENS = 64
 STOP_SEQUENCE = "####"
 N_ATTEMPTS = 5
 
+MAX_INITIAL_TEXT_LEN = 128
+
 CONTENT_FILTER_ENGINE = "content-filter-alpha-c4"
 # False positive threshold for content filtering
 TOXIC_THRESHOLD = -0.355
@@ -117,6 +119,12 @@ class GeneratorProcess(Process):
         if initial_text is None:
             self.logger.info(f"Generating prefixless message")
             return self.generate_completion(None)
+
+        if len(initial_text) > MAX_INITIAL_TEXT_LEN:
+            self.logger.info(
+                f"Initial text was {len(initial_text)} characters long (maximum {MAX_INITIAL_TEXT_LEN})"
+            )
+            return "Your prompt was too long. Try again with a shorter one."
 
         attempts = N_ATTEMPTS
 

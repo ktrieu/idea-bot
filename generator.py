@@ -1,15 +1,20 @@
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from multiprocessing import Process
-import logging
-import gpt_2_simple as gpt2
-import tensorflow as tf
+import os
+import openai
 import enum
-import sys
 import util
 
-TEMPERATURE = 0.9
-GENERATE_N_WORDS = 32
+TEMPERATURE = 0.8
+MAX_TOKENS = 64
+STOP_SEQUENCE = "####"
 N_ATTEMPTS = 5
-MAX_MESSAGES_BEFORE_RESET = 1
+
+PREFIX_TEXT = "Looking for a mathNEWS article idea? How about:"
+MODEL_ID = os.environ.get("OPENAI_FINETUNED_MODEL")
 
 
 class RequestType(enum.Enum):
@@ -48,55 +53,54 @@ class GeneratorProcess(Process):
         self.conn = conn
         self.sess = None
         self.terminate = False
-        self.messages_generated = 0
 
     def start(self):
         Process.start(self)
 
+    def is_valid_completion(self, completion):
+        if completion == "":
+            return False
+        # content filtering eventually goes here
+        return True
+
     def generate_message(self, initial_text):
         if initial_text is None:
             self.logger.info(f"Generating prefixless message")
-            return self.generate_potential_message(None)
+            return self.generate_completion(None)
 
         attempts = N_ATTEMPTS
 
-        # Try N_ATTEMPTS times to generate a message that isn't just the initial text
+        # Try N_ATTEMPTS times to generate a valid completion
         while attempts > 0:
             self.logger.info(
                 f"Prefix message generation: attempt {N_ATTEMPTS - attempts + 1} of {N_ATTEMPTS}"
             )
-            potential_message = self.generate_potential_message(initial_text)
-            if potential_message != initial_text:
+            completion = self.generate_completion(initial_text)
+            if self.is_valid_completion(completion):
                 self.logger.info(f"Prefix message generation success")
-                return potential_message
+                return initial_text + completion
 
             attempts -= 1
 
         # well, we tried
         self.logger.info(f"Attempts exhausted")
-        return potential_message
+        return initial_text
 
-    def generate_potential_message(self, initial_text):
-        with self.graph.as_default():
-            generated = gpt2.generate(
-                self.sess,
-                length=GENERATE_N_WORDS,
-                temperature=TEMPERATURE,
-                truncate="\n\n",
-                prefix=initial_text,
-                return_as_list=True,
-            )[0]
-            self.messages_generated += 1
-            return generated
-
-    def reset_tf_session(self):
-        if self.sess is None:
-            self.sess = gpt2.start_tf_sess()
+    def generate_completion(self, initial_text):
+        if initial_text is not None:
+            prompt = PREFIX_TEXT + " " + initial_text
         else:
-            self.sess = gpt2.reset_session(self.sess)
-        gpt2.load_gpt2(self.sess)
-        self.graph = tf.get_default_graph()
-        self.messages_generated = 0
+            prompt = PREFIX_TEXT
+        # The model performs worse with trailing spaces
+        prompt = prompt.rstrip()
+        completion = openai.Completion.create(
+            model=MODEL_ID,
+            prompt=prompt,
+            max_tokens=MAX_TOKENS,
+            stop=STOP_SEQUENCE,
+            temperature=TEMPERATURE,
+        )
+        return completion.choices[0].text
 
     def handle_request(self, request):
         if request.type == RequestType.GENERATE:
@@ -107,8 +111,6 @@ class GeneratorProcess(Process):
             self.conn.send(
                 GenerateResponse(generated, request.channel_id, request.message_id)
             )
-            if self.messages_generated > MAX_MESSAGES_BEFORE_RESET:
-                self.reset_tf_session()
         elif request.type == RequestType.STOP:
             self.logger.info(f"Stop message received, terminating")
             self.terminate = True
@@ -117,7 +119,6 @@ class GeneratorProcess(Process):
 
     def run(self):
         self.logger = util.create_logger(__name__)
-        self.reset_tf_session()
         self.logger.info("Starting GeneratorProcess")
 
         try:

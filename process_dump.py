@@ -15,6 +15,6 @@ if __name__ == "__main__":
                 cleaned_match = html.unescape(match.rstrip("\n"))
                 # Output line by line in JSONL format
                 titles_file.write(
-                    json.dumps({"prompt": "", "completion": cleaned_match + "\n\n"})
+                    json.dumps({"prompt": "", "completion": cleaned_match + "####"})
                     + "\n"
                 )

@@ -7,6 +7,7 @@ import os
 import openai
 import enum
 import util
+from profanity_filter import ProfanityFilter
 
 TEMPERATURE = 0.8
 MAX_TOKENS = 64
@@ -24,6 +25,8 @@ CONTENT_HARMFUL = "2"
 
 PREFIX_TEXT = "Looking for a mathNEWS article idea? How about:"
 MODEL_ID = os.environ.get("OPENAI_FINETUNED_MODEL")
+
+PROFANITY_FILTER = ProfanityFilter()
 
 
 class RequestType(enum.Enum):
@@ -80,6 +83,7 @@ class GeneratorProcess(Process):
         )
 
         output_label = response.choices[0].text
+        print(output_label)
         # If the classifier returns harmful, check probablity first
         # and reassign to the next most probable label if its below the threshold
         if output_label == CONTENT_HARMFUL:
@@ -105,15 +109,13 @@ class GeneratorProcess(Process):
 
         return output_label == CONTENT_HARMFUL
 
+    def is_profane(self, initial_text):
+        return PROFANITY_FILTER.is_profane(initial_text)
+
     def is_valid_completion(self, completion):
         if completion == "":
             return False
-        harmful = self.is_harmful(completion)
-        if harmful:
-            self.logger.info(
-                f"Content filter found {completion} to be harmful. Rejecting..."
-            )
-        return not harmful
+        return True
 
     def generate_message(self, initial_text):
         if initial_text is None:
@@ -162,10 +164,24 @@ class GeneratorProcess(Process):
 
     def handle_request(self, request):
         if request.type == RequestType.GENERATE:
-            self.logger.info(
-                f"Generating with initial text: {request.initial_text} for {request.message_id}"
-            )
-            generated = self.generate_message(request.initial_text)
+            # reject prompts with profane input
+            if request.initial_text is not None and self.is_profane(
+                request.initial_text
+            ):
+                generated = (
+                    "Sorry, your prompt contained profane language. Please try again."
+                )
+            else:
+                self.logger.info(
+                    f"Generating with initial text: {request.initial_text} for {request.message_id}"
+                )
+                generated = self.generate_message(request.initial_text)
+                # do some censorship
+                if self.is_harmful(generated):
+                    generated = (
+                        "Sorry, the response was determined to be harmful. Try again."
+                    )
+
             self.conn.send(
                 GenerateResponse(generated, request.channel_id, request.message_id)
             )

@@ -179,6 +179,7 @@ class GeneratorProcess(Process):
                 generated = self.generate_message(request.initial_text, request.user_id)
                 # do some censorship
                 if self.is_harmful(generated, request.user_id):
+                    self.logger.info(f'Content filter triggered on {generated}. Rejecting...')
                     generated = (
                         "Sorry, the response was determined to be harmful. Try again."
                     )

@@ -62,7 +62,12 @@ class IdeaBotClient(discord.Client):
         self.logger.info(f"Scheduling generation for {message.id}...")
 
         self.conn.send(
-            GenerateRequest(initial_text, sent_message.channel.id, sent_message.id)
+            GenerateRequest(
+                initial_text,
+                sent_message.channel.id,
+                sent_message.id,
+                message.author.id,
+            )
         )
 
     async def check_responses(self):

@@ -39,11 +39,12 @@ class ResponseType(enum.Enum):
 
 
 class GenerateRequest:
-    def __init__(self, initial_text, channel_id, message_id):
+    def __init__(self, initial_text, channel_id, message_id, user_id):
         self.type = RequestType.GENERATE
         self.initial_text = initial_text
         self.channel_id = channel_id
         self.message_id = message_id
+        self.user_id = user_id
 
 
 class StopRequest:
@@ -69,7 +70,7 @@ class GeneratorProcess(Process):
     def start(self):
         Process.start(self)
 
-    def is_harmful(self, completion):
+    def is_harmful(self, completion, user_id):
         # https://beta.openai.com/docs/engines/content-filter
         response = openai.Completion.create(
             engine=CONTENT_FILTER_ENGINE,
@@ -83,7 +84,6 @@ class GeneratorProcess(Process):
         )
 
         output_label = response.choices[0].text
-        print(output_label)
         # If the classifier returns harmful, check probablity first
         # and reassign to the next most probable label if its below the threshold
         if output_label == CONTENT_HARMFUL:
@@ -117,10 +117,10 @@ class GeneratorProcess(Process):
             return False
         return True
 
-    def generate_message(self, initial_text):
+    def generate_message(self, initial_text, user_id):
         if initial_text is None:
             self.logger.info(f"Generating prefixless message")
-            return self.generate_completion(None)
+            return self.generate_completion(None, user_id)
 
         if len(initial_text) > MAX_INITIAL_TEXT_LEN:
             self.logger.info(
@@ -135,7 +135,7 @@ class GeneratorProcess(Process):
             self.logger.info(
                 f"Prefix message generation: attempt {N_ATTEMPTS - attempts + 1} of {N_ATTEMPTS}"
             )
-            completion = self.generate_completion(initial_text)
+            completion = self.generate_completion(initial_text, user_id)
             if self.is_valid_completion(completion):
                 self.logger.info(f"Prefix message generation success")
                 return initial_text + completion
@@ -146,7 +146,7 @@ class GeneratorProcess(Process):
         self.logger.info(f"Attempts exhausted")
         return initial_text
 
-    def generate_completion(self, initial_text):
+    def generate_completion(self, initial_text, user_id):
         if initial_text is not None:
             prompt = PREFIX_TEXT + " " + initial_text
         else:
@@ -159,6 +159,7 @@ class GeneratorProcess(Process):
             max_tokens=MAX_TOKENS,
             stop=STOP_SEQUENCE,
             temperature=TEMPERATURE,
+            user=str(user_id),
         )
         return completion.choices[0].text
 
@@ -175,9 +176,9 @@ class GeneratorProcess(Process):
                 self.logger.info(
                     f"Generating with initial text: {request.initial_text} for {request.message_id}"
                 )
-                generated = self.generate_message(request.initial_text)
+                generated = self.generate_message(request.initial_text, request.user_id)
                 # do some censorship
-                if self.is_harmful(generated):
+                if self.is_harmful(generated, request.user_id):
                     generated = (
                         "Sorry, the response was determined to be harmful. Try again."
                     )

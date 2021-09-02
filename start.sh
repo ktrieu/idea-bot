@@ -1,4 +1,3 @@
 #! /bin/bash
 cd ~/idea-bot
-. env/bin/activate
-python bot.py   
+pipenv run python bot.py

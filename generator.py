@@ -4,7 +4,9 @@ load_dotenv()
 
 from multiprocessing import Process
 import os
+import time
 import openai
+import openai.error
 import enum
 import util
 from profanity_filter import ProfanityFilter
@@ -16,7 +18,10 @@ N_ATTEMPTS = 5
 
 MAX_INITIAL_TEXT_LEN = 128
 
+MAX_RETRY_DELAY_S = 10
+
 CONTENT_FILTER_ENGINE = "content-filter-alpha-c4"
+
 # False positive threshold for content filtering
 TOXIC_THRESHOLD = -0.355
 CONTENT_SAFE = "0"
@@ -150,18 +155,30 @@ class GeneratorProcess(Process):
         if initial_text is not None:
             prompt = PREFIX_TEXT + " " + initial_text
         else:
-            prompt = PREFIX_TEXT
+            prompt = PREFIX_TEXT    
         # The model performs worse with trailing spaces
         prompt = prompt.rstrip()
-        completion = openai.Completion.create(
-            model=MODEL_ID,
-            prompt=prompt,
-            max_tokens=MAX_TOKENS,
-            stop=STOP_SEQUENCE,
-            temperature=TEMPERATURE,
-            user=str(user_id),
-        )
-        return completion.choices[0].text
+
+        result = None
+        delay = 1
+
+        while result is None:
+            try:
+                completion = openai.Completion.create(
+                    model=MODEL_ID,
+                    prompt=prompt,
+                    max_tokens=MAX_TOKENS,
+                    stop=STOP_SEQUENCE,
+                    temperature=TEMPERATURE,
+                    user=str(user_id),
+                )
+                result = completion.choices[0].text
+            except openai.error.RateLimitError:
+                self.logger.info(f'OpenAI request rate limited. Waiting {delay} seconds.')
+                time.sleep(delay)
+                delay = min(MAX_RETRY_DELAY_S, delay * 2)
+
+        return result
 
     def handle_request(self, request):
         if request.type == RequestType.GENERATE:

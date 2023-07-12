@@ -10,6 +10,7 @@ import openai
 import openai.error
 import enum
 import util
+import tiktoken
 
 TEMPERATURE = 0.8
 MAX_TOKENS = 64
@@ -35,7 +36,7 @@ MODEL_ID = os.environ.get("OPENAI_FINETUNED_MODEL")
 TITLES_FILE_PATH = "titles.txt"
 SYSTEM_PROMPT_FILE_PATH = "system_prompt.txt"
 
-NUM_SYSTEM_PROMPT_TITLES = 30
+NUM_SYSTEM_PROMPT_TITLES = 50
 
 
 class RequestType(enum.Enum):
@@ -159,7 +160,7 @@ class GeneratorProcess(Process):
         return initial_text
 
     def create_system_prompt(self):
-        selected_titles = random.choices(self.titles, k=NUM_SYSTEM_PROMPT_TITLES)
+        selected_titles = random.sample(self.titles, NUM_SYSTEM_PROMPT_TITLES)
         title_prompt = "\n".join(selected_titles)
 
         return self.system_prompt_base + "\n" + title_prompt
@@ -178,7 +179,12 @@ class GeneratorProcess(Process):
         while result is None:
             try:
                 system_prompt = self.create_system_prompt()
-                print(system_prompt)
+                num_tokens = len(
+                    tiktoken.encoding_for_model("gpt-4").encode(system_prompt)
+                )
+                self.logger.info(
+                    f"Prompt generated using {NUM_SYSTEM_PROMPT_TITLES} random titles. {num_tokens} tokens."
+                )
                 chat_completion = openai.ChatCompletion.create(
                     model="gpt-4",
                     messages=[

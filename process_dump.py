@@ -2,10 +2,14 @@ import re
 import html
 import json
 
+import tiktoken
+
 TITLE_REGEX = re.compile(r"<title>(.*)<\/title>")
 CDATA_REGEX = re.compile(r"<!\[CDATA\[(.*)\]\]>")
 
 if __name__ == "__main__":
+    encoding = tiktoken.encoding_for_model("gpt-4")
+
     with open("titles.txt", "w", encoding="utf-8") as titles_file:
         with open("wp_dump.xml", "r", encoding="utf-8") as wp_dump_file:
             dump_file_text = wp_dump_file.read()
@@ -30,18 +34,9 @@ if __name__ == "__main__":
                 if cleaned_match[-1] == "^":
                     cleaned_match = cleaned_match[0:-1]
 
-                # Output line by line in JSONL format
-                titles_file.write(
-                    json.dumps(
-                        {
-                            "prompt": "Looking for a mathNEWS article idea? How about:",
-                            "completion": cleaned_match + "####",
-                        }
-                    )
-                    + "\n"
-                )
+                # Output title as one line
+                titles_file.write(cleaned_match + "\n")
 
-                # Approximation from the OpenAI website
-                total_tokens += len(cleaned_match + "####") / 4
+                total_tokens += len(encoding.encode(cleaned_match))
 
             print(f"Titles written. Estimated {total_tokens} tokens of training data.")

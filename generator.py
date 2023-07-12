@@ -77,13 +77,13 @@ class GeneratorProcess(Process):
         self.terminate = False
 
     def start(self):
-        Process.start(self)
-
         self.titles = []
-        with open(TITLES_FILE_PATH, "r") as title_file:
-            self.titles = list(title_file)
+        with open(TITLES_FILE_PATH, "r", encoding="utf-8") as title_file:
+            self.titles = list(title_file.readlines())
 
         self.system_prompt_base = open(SYSTEM_PROMPT_FILE_PATH, "r").read()
+
+        Process.start(self)
 
     def is_harmful(self, completion, user_id):
         # https://beta.openai.com/docs/engines/content-filter
@@ -187,7 +187,7 @@ class GeneratorProcess(Process):
                     ],
                 )
 
-                result = chat_completion.choices[0].message
+                result = chat_completion.choices[0].message.content
             except openai.error.RateLimitError:
                 self.logger.info(
                     f"OpenAI request rate limited. Waiting {delay} seconds."
@@ -203,15 +203,15 @@ class GeneratorProcess(Process):
                 self.logger.info(
                     f"Generating with initial text: {request.initial_text} for {request.message_id}"
                 )
-                generated = self.generate_message(request.initial_text, request.user_id)
-                # do some censorship
-                if self.is_harmful(generated, request.user_id):
-                    self.logger.info(
-                        f"Content filter triggered on {generated}. Rejecting..."
-                    )
-                    generated = (
-                        "Sorry, the response was determined to be harmful. Try again."
-                    )
+            generated = self.generate_message(request.initial_text, request.user_id)
+            # do some censorship
+            if self.is_harmful(generated, request.user_id):
+                self.logger.info(
+                    f"Content filter triggered on {generated}. Rejecting..."
+                )
+                generated = (
+                    "Sorry, the response was determined to be harmful. Try again."
+                )
 
             self.conn.send(
                 GenerateResponse(generated, request.channel_id, request.message_id)

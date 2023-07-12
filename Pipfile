@@ -8,8 +8,9 @@ openai = "*"
 "discord.py" = "*"
 profanity-filter = "*"
 python-dotenv = "*"
+tiktoken = "*"
 
 [dev-packages]
 
 [requires]
-python_version = "3.7"
+python_version = "3.9"

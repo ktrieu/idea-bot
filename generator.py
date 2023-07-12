@@ -10,7 +10,6 @@ import openai
 import openai.error
 import enum
 import util
-from profanity_filter import ProfanityFilter
 
 TEMPERATURE = 0.8
 MAX_TOKENS = 64
@@ -37,8 +36,6 @@ TITLES_FILE_PATH = "titles.txt"
 SYSTEM_PROMPT_FILE_PATH = "system_prompt.txt"
 
 NUM_SYSTEM_PROMPT_TITLES = 30
-
-PROFANITY_FILTER = ProfanityFilter()
 
 
 class RequestType(enum.Enum):
@@ -127,9 +124,6 @@ class GeneratorProcess(Process):
 
         return output_label == CONTENT_HARMFUL
 
-    def is_profane(self, initial_text):
-        return PROFANITY_FILTER.is_profane(initial_text)
-
     def is_valid_completion(self, completion):
         if completion == "":
             return False
@@ -205,14 +199,7 @@ class GeneratorProcess(Process):
 
     def handle_request(self, request):
         if request.type == RequestType.GENERATE:
-            # reject prompts with profane input
-            if request.initial_text is not None and self.is_profane(
-                request.initial_text
-            ):
-                generated = (
-                    "Sorry, your prompt contained profane language. Please try again."
-                )
-            else:
+            if request.initial_text is not None:
                 self.logger.info(
                     f"Generating with initial text: {request.initial_text} for {request.message_id}"
                 )

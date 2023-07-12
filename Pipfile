@@ -6,7 +6,6 @@ name = "pypi"
 [packages]
 openai = "*"
 "discord.py" = "*"
-profanity-filter = "*"
 python-dotenv = "*"
 tiktoken = "*"
 

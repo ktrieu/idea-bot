@@ -150,7 +150,7 @@ class GeneratorProcess(Process):
             completion = self.generate_completion(initial_text, user_id)
             if self.is_valid_completion(completion):
                 self.logger.info(f"Prefix message generation success")
-                return initial_text + completion
+                return completion
 
             attempts -= 1
 

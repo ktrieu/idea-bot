@@ -5,6 +5,7 @@ load_dotenv()
 from multiprocessing import Process
 import os
 import time
+import random
 import openai
 import openai.error
 import enum
@@ -28,8 +29,14 @@ CONTENT_SAFE = "0"
 CONTENT_SENSITIVE = "1"
 CONTENT_HARMFUL = "2"
 
-PREFIX_TEXT = "Looking for a mathNEWS article idea? How about:"
+PROMPT_PREFIX = "The prompt is: "
+PROMPT_NO_INITIAL = "There is no prompt provided."
 MODEL_ID = os.environ.get("OPENAI_FINETUNED_MODEL")
+
+TITLES_FILE_PATH = "titles.txt"
+SYSTEM_PROMPT_FILE_PATH = "system_prompt.txt"
+
+NUM_SYSTEM_PROMPT_TITLES = 30
 
 PROFANITY_FILTER = ProfanityFilter()
 
@@ -74,6 +81,12 @@ class GeneratorProcess(Process):
 
     def start(self):
         Process.start(self)
+
+        self.titles = []
+        with open(TITLES_FILE_PATH, "r") as title_file:
+            self.titles = list(title_file)
+
+        self.system_prompt_base = open(SYSTEM_PROMPT_FILE_PATH, "r").read()
 
     def is_harmful(self, completion, user_id):
         # https://beta.openai.com/docs/engines/content-filter
@@ -151,11 +164,17 @@ class GeneratorProcess(Process):
         self.logger.info(f"Attempts exhausted")
         return initial_text
 
+    def create_system_prompt(self):
+        selected_titles = random.choices(self.titles, k=NUM_SYSTEM_PROMPT_TITLES)
+        title_prompt = "\n".join(selected_titles)
+
+        return self.system_prompt_base + "\n" + title_prompt
+
     def generate_completion(self, initial_text, user_id):
         if initial_text is not None:
-            prompt = PREFIX_TEXT + " " + initial_text
+            prompt = PROMPT_PREFIX + " " + initial_text
         else:
-            prompt = PREFIX_TEXT    
+            prompt = PROMPT_NO_INITIAL
         # The model performs worse with trailing spaces
         prompt = prompt.rstrip()
 
@@ -164,17 +183,21 @@ class GeneratorProcess(Process):
 
         while result is None:
             try:
-                completion = openai.Completion.create(
-                    model=MODEL_ID,
-                    prompt=prompt,
-                    max_tokens=MAX_TOKENS,
-                    stop=STOP_SEQUENCE,
-                    temperature=TEMPERATURE,
-                    user=str(user_id),
+                system_prompt = self.create_system_prompt()
+                print(system_prompt)
+                chat_completion = openai.ChatCompletion.create(
+                    model="gpt-4",
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": prompt},
+                    ],
                 )
-                result = completion.choices[0].text
+
+                result = chat_completion.choices[0].message
             except openai.error.RateLimitError:
-                self.logger.info(f'OpenAI request rate limited. Waiting {delay} seconds.')
+                self.logger.info(
+                    f"OpenAI request rate limited. Waiting {delay} seconds."
+                )
                 time.sleep(delay)
                 delay = min(MAX_RETRY_DELAY_S, delay * 2)
 
@@ -196,7 +219,9 @@ class GeneratorProcess(Process):
                 generated = self.generate_message(request.initial_text, request.user_id)
                 # do some censorship
                 if self.is_harmful(generated, request.user_id):
-                    self.logger.info(f'Content filter triggered on {generated}. Rejecting...')
+                    self.logger.info(
+                        f"Content filter triggered on {generated}. Rejecting..."
+                    )
                     generated = (
                         "Sorry, the response was determined to be harmful. Try again."
                     )

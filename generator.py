@@ -21,16 +21,6 @@ N_ATTEMPTS = 5
 
 MAX_INITIAL_TEXT_LEN = 128
 
-MAX_RETRY_DELAY_S = 10
-
-CONTENT_FILTER_ENGINE = "content-filter-alpha-c4"
-
-# False positive threshold for content filtering
-TOXIC_THRESHOLD = -0.355
-CONTENT_SAFE = "0"
-CONTENT_SENSITIVE = "1"
-CONTENT_HARMFUL = "2"
-
 PROMPT_PREFIX = "The prompt is: "
 PROMPT_NO_INITIAL = "There is no prompt provided."
 MODEL_ID = os.environ.get("OPENAI_FINETUNED_MODEL")

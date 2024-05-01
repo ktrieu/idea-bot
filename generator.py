@@ -175,33 +175,20 @@ class GeneratorProcess(Process):
         # The model performs worse with trailing spaces
         prompt = prompt.rstrip()
 
-        result = None
-        delay = 1
+        system_prompt = self.create_system_prompt()
+        num_tokens = len(tiktoken.encoding_for_model("gpt-4").encode(system_prompt))
+        self.logger.info(
+            f"Prompt generated using {NUM_SYSTEM_PROMPT_TITLES} random titles. {num_tokens} tokens."
+        )
+        chat_completion = client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt},
+            ],
+        )
 
-        while result is None:
-            try:
-                system_prompt = self.create_system_prompt()
-                num_tokens = len(
-                    tiktoken.encoding_for_model("gpt-4").encode(system_prompt)
-                )
-                self.logger.info(
-                    f"Prompt generated using {NUM_SYSTEM_PROMPT_TITLES} random titles. {num_tokens} tokens."
-                )
-                chat_completion = client.chat.completions.create(
-                    model="gpt-4",
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": prompt},
-                    ],
-                )
-
-                result = chat_completion.choices[0].message.content
-            except openai.RateLimitError:
-                self.logger.info(
-                    f"OpenAI request rate limited. Waiting {delay} seconds."
-                )
-                time.sleep(delay)
-                delay = min(MAX_RETRY_DELAY_S, delay * 2)
+        result = chat_completion.choices[0].message.content
 
         return result
 

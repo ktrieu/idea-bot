@@ -1,5 +1,6 @@
 import logging
 import sys
+import os
 
 
 def create_logger(name):
@@ -16,3 +17,8 @@ def create_logger(name):
     logger.addHandler(sysout_handler)
     logger.addHandler(file_handler)
     return logger
+
+
+def is_debug():
+    debug_var = os.environ.get("DEBUG")
+    return debug_var == "true"

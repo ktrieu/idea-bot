@@ -16,7 +16,8 @@ load_dotenv()
 ALLOWED_CHANNELS = {"secret-channel-name", "beyond-ideas"}
 TEST_SERVER_ID = 748228407472423015
 MATHNEWS_SERVER_ID = 739575273443426305
-ALLOWED_SERVER_IDS = {TEST_SERVER_ID}
+ALLOWED_SERVER_IDS_DEBUG = {TEST_SERVER_ID}
+ALLOWED_SERVER_IDS_PROD = {TEST_SERVER_ID, MATHNEWS_SERVER_ID}
 
 COMMAND = "!idea"
 
@@ -36,10 +37,16 @@ class IdeaBotClient(discord.Client):
         self.generator_process = GeneratorProcess(conn=child_conn)
         self.generator_process.start()
 
+    def is_allowed_server(self, server_id):
+        if util.is_debug():
+            return server_id in ALLOWED_SERVER_IDS_DEBUG
+        else:
+            return server_id in ALLOWED_SERVER_IDS_PROD
+
     def should_respond(self, message):
         return (
             message.channel.name in ALLOWED_CHANNELS
-            and message.guild.id in ALLOWED_SERVER_IDS
+            and self.is_allowed_server(message.guild.id)
             and message.content.startswith(COMMAND)
         )
 

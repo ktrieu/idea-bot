@@ -7,7 +7,9 @@ import os
 import time
 import random
 import openai
-import openai.error
+from openai import OpenAI
+
+client = OpenAI()
 import enum
 import util
 import tiktoken
@@ -18,16 +20,6 @@ STOP_SEQUENCE = "####"
 N_ATTEMPTS = 5
 
 MAX_INITIAL_TEXT_LEN = 128
-
-MAX_RETRY_DELAY_S = 10
-
-CONTENT_FILTER_ENGINE = "content-filter-alpha-c4"
-
-# False positive threshold for content filtering
-TOXIC_THRESHOLD = -0.355
-CONTENT_SAFE = "0"
-CONTENT_SENSITIVE = "1"
-CONTENT_HARMFUL = "2"
 
 PROMPT_PREFIX = "The prompt is: "
 PROMPT_NO_INITIAL = "There is no prompt provided."
@@ -87,43 +79,9 @@ class GeneratorProcess(Process):
         Process.start(self)
 
     def is_harmful(self, completion, user_id):
-        # https://beta.openai.com/docs/engines/content-filter
-        response = openai.Completion.create(
-            engine=CONTENT_FILTER_ENGINE,
-            prompt="<|endoftext|>" + completion + "\n--\nLabel:",
-            temperature=0,
-            max_tokens=1,
-            top_p=1,
-            frequency_penalty=0,
-            presence_penalty=0,
-            logprobs=10,
-        )
+        resp = client.moderations.create(input=completion)
 
-        output_label = response.choices[0].text
-        # If the classifier returns harmful, check probablity first
-        # and reassign to the next most probable label if its below the threshold
-        if output_label == CONTENT_HARMFUL:
-            logprobs = response["choices"][0]["logprobs"]["top_logprobs"][0]
-
-            if logprobs[CONTENT_HARMFUL] < TOXIC_THRESHOLD:
-                prob_safe = logprobs.get(CONTENT_SAFE, None)
-                prob_sensitive = logprobs.get(CONTENT_SENSITIVE, None)
-
-                if prob_safe is not None and prob_sensitive is not None:
-                    if prob_safe >= prob_sensitive:
-                        output_label = CONTENT_SAFE
-                    else:
-                        output_label = CONTENT_SENSITIVE
-
-                elif prob_safe is not None:
-                    output_label = CONTENT_SAFE
-                elif prob_sensitive is not None:
-                    output_label = CONTENT_SENSITIVE
-
-        if output_label not in [CONTENT_SAFE, CONTENT_SENSITIVE, CONTENT_HARMFUL]:
-            output_label = CONTENT_HARMFUL
-
-        return output_label == CONTENT_HARMFUL
+        return resp.results[0].flagged
 
     def is_valid_completion(self, completion):
         if completion == "":
@@ -173,33 +131,20 @@ class GeneratorProcess(Process):
         # The model performs worse with trailing spaces
         prompt = prompt.rstrip()
 
-        result = None
-        delay = 1
+        system_prompt = self.create_system_prompt()
+        num_tokens = len(tiktoken.encoding_for_model("gpt-4").encode(system_prompt))
+        self.logger.info(
+            f"Prompt generated using {NUM_SYSTEM_PROMPT_TITLES} random titles. {num_tokens} tokens."
+        )
+        chat_completion = client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt},
+            ],
+        )
 
-        while result is None:
-            try:
-                system_prompt = self.create_system_prompt()
-                num_tokens = len(
-                    tiktoken.encoding_for_model("gpt-4").encode(system_prompt)
-                )
-                self.logger.info(
-                    f"Prompt generated using {NUM_SYSTEM_PROMPT_TITLES} random titles. {num_tokens} tokens."
-                )
-                chat_completion = openai.ChatCompletion.create(
-                    model="gpt-4",
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": prompt},
-                    ],
-                )
-
-                result = chat_completion.choices[0].message.content
-            except openai.error.RateLimitError:
-                self.logger.info(
-                    f"OpenAI request rate limited. Waiting {delay} seconds."
-                )
-                time.sleep(delay)
-                delay = min(MAX_RETRY_DELAY_S, delay * 2)
+        result = chat_completion.choices[0].message.content
 
         return result
 

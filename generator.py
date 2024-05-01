@@ -10,7 +10,6 @@ import openai
 from openai import OpenAI
 
 client = OpenAI()
-import openai.error
 import enum
 import util
 import tiktoken
@@ -91,14 +90,16 @@ class GeneratorProcess(Process):
 
     def is_harmful(self, completion, user_id):
         # https://beta.openai.com/docs/engines/content-filter
-        response = client.completions.create(engine=CONTENT_FILTER_ENGINE,
-        prompt="<|endoftext|>" + completion + "\n--\nLabel:",
-        temperature=0,
-        max_tokens=1,
-        top_p=1,
-        frequency_penalty=0,
-        presence_penalty=0,
-        logprobs=10)
+        response = client.completions.create(
+            engine=CONTENT_FILTER_ENGINE,
+            prompt="<|endoftext|>" + completion + "\n--\nLabel:",
+            temperature=0,
+            max_tokens=1,
+            top_p=1,
+            frequency_penalty=0,
+            presence_penalty=0,
+            logprobs=10,
+        )
 
         output_label = response.choices[0].text
         # If the classifier returns harmful, check probablity first
@@ -186,11 +187,13 @@ class GeneratorProcess(Process):
                 self.logger.info(
                     f"Prompt generated using {NUM_SYSTEM_PROMPT_TITLES} random titles. {num_tokens} tokens."
                 )
-                chat_completion = client.chat.completions.create(model="gpt-4",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt},
-                ])
+                chat_completion = client.chat.completions.create(
+                    model="gpt-4",
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": prompt},
+                    ],
+                )
 
                 result = chat_completion.choices[0].message.content
             except openai.RateLimitError:

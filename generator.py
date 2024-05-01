@@ -89,43 +89,9 @@ class GeneratorProcess(Process):
         Process.start(self)
 
     def is_harmful(self, completion, user_id):
-        # https://beta.openai.com/docs/engines/content-filter
-        response = client.completions.create(
-            engine=CONTENT_FILTER_ENGINE,
-            prompt="<|endoftext|>" + completion + "\n--\nLabel:",
-            temperature=0,
-            max_tokens=1,
-            top_p=1,
-            frequency_penalty=0,
-            presence_penalty=0,
-            logprobs=10,
-        )
+        resp = client.moderations.create(input=completion)
 
-        output_label = response.choices[0].text
-        # If the classifier returns harmful, check probablity first
-        # and reassign to the next most probable label if its below the threshold
-        if output_label == CONTENT_HARMFUL:
-            logprobs = response.choices[0].logprobs.top_logprobs[0]
-
-            if logprobs[CONTENT_HARMFUL] < TOXIC_THRESHOLD:
-                prob_safe = logprobs.get(CONTENT_SAFE, None)
-                prob_sensitive = logprobs.get(CONTENT_SENSITIVE, None)
-
-                if prob_safe is not None and prob_sensitive is not None:
-                    if prob_safe >= prob_sensitive:
-                        output_label = CONTENT_SAFE
-                    else:
-                        output_label = CONTENT_SENSITIVE
-
-                elif prob_safe is not None:
-                    output_label = CONTENT_SAFE
-                elif prob_sensitive is not None:
-                    output_label = CONTENT_SENSITIVE
-
-        if output_label not in [CONTENT_SAFE, CONTENT_SENSITIVE, CONTENT_HARMFUL]:
-            output_label = CONTENT_HARMFUL
-
-        return output_label == CONTENT_HARMFUL
+        return resp.results[0].flagged
 
     def is_valid_completion(self, completion):
         if completion == "":
